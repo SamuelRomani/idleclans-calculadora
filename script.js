@@ -1,158 +1,183 @@
-const receitas = [
-  {
-    nome: "Baiacu Cozido",
-    produto: "Baiacu Cozido",
-    ingredientes: ["Baiacu Cru"],
-    xp: 105,
-    tempo: 12
-  },
-  {
-    nome: "Atum Cozido",
-    produto: "Atum Cozido",
-    ingredientes: ["Atum Cru"],
-    xp: 381.2,
-    tempo: 25.2
-  },
-  {
-    nome: "Poção da Rapidez",
-    produto: "Poção da Rapidez",
-    ingredientes: ["Tomate", "Tomate", "Tomate", "Tomate", "Tomate", "Tomate", "Tomate", "Tomate", "Tomate", "Tomate", "Urtiga", "Urtiga", "Urtiga", "Urtiga", "Urtiga", "Tronco de Pinho", "Tronco de Pinho"],
-    xp: 862.5,
-    tempo: 55
-  }
-];
+// --- Definição da URL Base da API do Idle Clans ---
+const BASE_API_URL = "https://idleclans.com/api/";
 
-// Mapeamento de nomes de ingredientes para os nomes exatos retornados pela API, se necessário.
-// Por enquanto, assumimos que os nomes das receitas são os mesmos da API.
-// Se a API retornar nomes diferentes (ex: "Raw Anglerfish" em vez de "Baiacu Cru"),
-// você precisará ajustar este mapeamento.
-const itemNomeParaAPINome = {
-  "Baiacu Cru": "Raw Anglerfish",
-  "Baiacu Cozido": "Cooked Anglerfish",
-  "Atum Cru": "Raw Tuna",
-  "Atum Cozido": "Cooked Tuna",
-  "Tomate": "Tomato",
-  "Urtiga": "Nettle",
-  "Tronco de Pinho": "Pine Log",
-  "Poção da Rapidez": "Potion of Swiftness"
-  // Adicione outros itens conforme necessário, se os nomes forem diferentes na API
-};
+// Referências aos elementos HTML
+const itemRawNameInput = document.getElementById('item-raw-name');
+const itemProcessedNameInput = document.getElementById('item-processed-name');
+const calculateProfitButton = document.getElementById('calculate-profit-button');
+const clearButton = document.getElementById('clear-button');
+const apiDataElement = document.getElementById('api-data');
+const errorMessageElement = document.getElementById('error-message');
+const loadingMessageElement = document.getElementById('loading-message');
 
+// Cache para armazenar o mapeamento de nome do item para ID
+let itemNameToIdMap = new Map();
 
-async function buscarPrecos() {
-  // Nova URL da API para os preços mais recentes de todos os itens
-  // Adicionamos includeAveragePrice=true para ter mais opções de preço, se necessário.
-  const url = "https://query.idleclans.com/api/PlayerMarket/items/prices/latest?includeAveragePrice=true";
+/**
+ * Função genérica para fazer requisições à API.
+ * @param {string} url O URL completo da API.
+ * @returns {Promise<any>} Os dados parseados da resposta.
+ */
+async function fetchApiData(url) {
+    console.log(Buscando dados de: ${url});
+    const response = await fetch(url);
 
-  try {
-    const res = await fetch(url);
-
-    if (!res.ok) {
-      // Se a resposta não for 2xx (ex: 404, 500), lançamos um erro
-      const errorText = await res.text();
-      throw new Error(`Erro HTTP: ${res.status} - ${res.statusText}. Resposta: ${errorText}`);
+    if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Resposta de erro da API:', errorBody);
+        throw new Error(Erro HTTP: ${response.status} ${response.statusText}. Detalhes: ${errorBody.substring(0, 200)}...);
     }
 
-    const dados = await res.json();
-    console.log("Dados brutos da API:", dados); // Para depuração: veja a estrutura exata
-
-    // Criar um mapa de preços usando o nome do item como chave
-    // Tentamos usar o nome retornado pela API primeiro
-    const precos = {};
-    dados.forEach(item => {
-      // Usamos o 'highestPrice' para venda (o que você compra) e 'lowestPrice' para custo (o que você vende)
-      // Ajuste isso se houver um conceito de 'buy_price' e 'sell_price' mais claro na API
-      precos[item.name] = {
-        buy_price: item.lowestPrice, // Preço mais baixo no mercado (o que você pagaria para comprar)
-        sell_price: item.highestPrice // Preço mais alto no mercado (o que alguém pagaria para comprar o seu)
-      };
-    });
-
-    return precos;
-
-  } catch (error) {
-    console.error(`Erro ao buscar preços da API (${url}):`, error);
-    throw error; // Relança o erro para que a função main possa tratá-lo
-  }
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+    } else {
+        // Tenta parsear como JSON mesmo que o content-type não seja 'application/json'
+        const text = await response.text();
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            data = text; // Se não for JSON, mantém como texto puro
+        }
+    }
+    return data;
 }
 
-function calcularLucro(precos) {
-  return receitas.map(r => {
-    let custoTotalIngredientes = 0;
-    r.ingredientes.forEach(ingrediente => {
-      // Tenta mapear o nome da receita para o nome da API, se houver
-      const nomeApi = itemNomeParaAPINome[ingrediente] || ingrediente;
-      // Pega o preço de compra (lowestPrice) do ingrediente
-      custoTotalIngredientes += (precos[nomeApi] && precos[nomeApi].buy_price) ? precos[nomeApi].buy_price : 0;
-    });
+/**
+ * Busca todos os itens do mercado para criar um mapeamento de nome para ID.
+ * Isso é essencial, pois a API de preços usa ItemId, não nome.
+ */
+async function loadItemNameToIdMap() {
+    loadingMessageElement.textContent = 'Carregando lista de itens do mercado...';
+    loadingMessageElement.style.display = 'block';
+    errorMessageElement.textContent = '';
+    itemNameToIdMap.clear(); // Limpa o mapa anterior
 
-    // Pega o preço de venda (highestPrice) do produto final
-    const nomeProdutoApi = itemNomeParaAPINome[r.produto] || r.produto;
-    const precoVendaProduto = (precos[nomeProdutoApi] && precos[nomeProdutoApi].sell_price) ? precos[nomeProdutoApi].sell_price : 0;
+    try {
+        // Obter todos os preços mais recentes (isso geralmente inclui o nome do item associado ao ID)
+        // A API de /items/prices/latest retorna um array de objetos, onde cada objeto tem o itemId, lowestPrice, highestPrice e name.
+        const allItemsPrices = await fetchApiData(${BASE_API_URL}PlayerMarket/items/prices/latest);
 
-    const lucroUnidade = precoVendaProduto - custoTotalIngredientes;
-    const receitasPorHora = (r.tempo > 0) ? Math.floor(3600 / r.tempo) : 0; // Evita divisão por zero
-    
-    return {
-      nome: r.nome,
-      lucro: lucroUnidade,
-      lucroHora: lucroUnidade * receitasPorHora,
-      xpHora: (r.xp || 0) * receitasPorHora
-    };
-  });
+        if (Array.isArray(allItemsPrices)) {
+            allItemsPrices.forEach(item => {
+                if (item.name && item.itemId) {
+                    itemNameToIdMap.set(item.name.toLowerCase(), item.itemId);
+                }
+            });
+            console.log(Mapeamento de itens carregado: ${itemNameToIdMap.size} itens.);
+        } else {
+            throw new Error("Formato inesperado ao carregar lista de itens. Não é um array.");
+        }
+    } catch (error) {
+        errorMessageElement.textContent = Erro ao carregar mapeamento de itens: ${error.message}. Não será possível buscar itens por nome.;
+        console.error('Erro ao carregar mapeamento de itens:', error);
+    } finally {
+        loadingMessageElement.style.display = 'none';
+    }
 }
 
-function renderizarTabela(dados) {
-  const tbody = document.querySelector("#resultTable tbody");
-  tbody.innerHTML = ""; // Limpa o corpo da tabela
 
-  if (!dados || dados.length === 0) {
-    // Exibe mensagem se não houver dados ou eles estiverem vazios
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 4;
-    cell.textContent = "Nenhum dado de lucro disponível. Verifique o console para erros ou o status da API.";
-    cell.style.textAlign = "center";
-    cell.style.padding = "20px";
-    row.appendChild(cell);
-    tbody.appendChild(row);
-    return;
-  }
-
-  // Filtra receitas com lucro por hora válido antes de ordenar
-  const dadosValidos = dados.filter(item => typeof item.lucroHora === 'number' && !isNaN(item.lucroHora));
-  
-  dadosValidos.sort((a, b) => b.lucroHora - a.lucroHora); // Ordena pelo lucro por hora
-
-  dadosValidos.forEach(item => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${item.nome}</td>
-      <td>${item.lucro.toFixed(2)}</td>
-      <td>${item.lucroHora.toFixed(2)}</td>
-      <td>${item.xpHora.toFixed(2)}</td>
-    `;
-    tbody.appendChild(row);
-  });
+/**
+ * Busca o ID de um item pelo seu nome.
+ * @param {string} itemName O nome do item.
+ * @returns {number|null} O ID do item ou null se não encontrado.
+ */
+function getItemIdByName(itemName) {
+    return itemNameToIdMap.get(itemName.toLowerCase()) || null;
 }
 
-// Função principal para orquestrar o carregamento e renderização
-async function main() {
-  const tbody = document.querySelector("#resultTable tbody");
-  tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px;">Carregando dados do mercado...</td></tr>`;
+/**
+ * Calcula o lucro potencial entre dois itens (ex: cru vs cozido).
+ */
+async function calculateProfit() {
+    apiDataElement.innerHTML = ''; // Limpa dados anteriores
+    errorMessageElement.textContent = ''; // Limpa mensagens de erro
+    loadingMessageElement.textContent = 'Buscando preços...';
+    loadingMessageElement.style.display = 'block';
 
-  try {
-    const precos = await buscarPrecos();
-    const lucros = calcularLucro(precos);
-    renderizarTabela(lucros);
-  } catch (error) {
-    console.error("Erro fatal ao carregar ou processar dados:", error);
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red; padding:20px;">
-      Ocorreu um erro ao carregar os dados do mercado. Por favor, tente novamente mais tarde.
-      Detalhes no console do navegador (F12).
-    </td></tr>`;
-  }
+    const rawItemName = itemRawNameInput.value.trim();
+    const processedItemName = itemProcessedNameInput.value.trim();
+
+    if (!rawItemName || !processedItemName) {
+        errorMessageElement.textContent = "Por favor, insira o nome dos dois itens para calcular o lucro.";
+        loadingMessageElement.style.display = 'none';
+        return;
+    }
+
+    if (itemNameToIdMap.size === 0) {
+        errorMessageElement.textContent = "Erro: Mapeamento de itens não carregado. Tente recarregar a página.";
+        loadingMessageElement.style.display = 'none';
+        return;
+    }
+
+    const rawItemId = getItemIdByName(rawItemName);
+    const processedItemId = getItemIdByName(processedItemName);
+
+    if (rawItemId === null) {
+        errorMessageElement.textContent = Item "${rawItemName}" não encontrado na base de dados de itens. Verifique o nome.;
+        loadingMessageElement.style.display = 'none';
+        return;
+    }
+    if (processedItemId === null) {
+        errorMessageElement.textContent = Item "${processedItemName}" não encontrado na base de dados de itens. Verifique o nome.;
+        loadingMessageElement.style.display = 'none';
+        return;
+    }
+
+    try {
+        // Busca o preço do item cru
+        const rawItemPriceData = await fetchApiData(${BASE_API_URL}PlayerMarket/items/prices/latest/${rawItemId});
+        // Busca o preço do item processado
+        const processedItemPriceData = await fetchApiData(${BASE_API_URL}PlayerMarket/items/prices/latest/${processedItemId});
+
+        const rawItemLowestPrice = rawItemPriceData.lowestPrice;
+        const processedItemHighestPrice = processedItemPriceData.highestPrice; // Geralmente vendemos pelo preço mais alto
+
+        if (rawItemLowestPrice === undefined || processedItemHighestPrice === undefined) {
+             throw new Error("Não foi possível obter os preços de compra/venda dos itens. Verifique se estão listados no mercado.");
+        }
+
+        const profit = processedItemHighestPrice - rawItemLowestPrice;
+
+        let resultHtml = `
+            <h2>Detalhes do Lucro</h2>
+            <p><strong>Item Base (Compra):</strong> ${rawItemName} (ID: ${rawItemId})</p>
+            <p>Preço Mais Baixo (Compra): <span style="color: green;">${rawItemLowestPrice}</span></p>
+            <p><strong>Item Processado (Venda):</strong> ${processedItemName} (ID: ${processedItemId})</p>
+            <p>Preço Mais Alto (Venda): <span style="color: blue;">${processedItemHighestPrice}</span></p>
+            <hr>
+            <h3>Lucro Potencial por Unidade: <span style="color: ${profit >= 0 ? 'green' : 'red'};">${profit}</span></h3>
+            <p style="font-size: 0.9em; color: #666;">
+                *Este cálculo considera o menor preço de compra para o item base e o maior preço de venda para o item processado. <br>
+                Não inclui taxas de mercado ou custos adicionais de processamento (energia, etc.).
+            </p>
+        `;
+
+        apiDataElement.innerHTML = resultHtml;
+
+    } catch (error) {
+        errorMessageElement.textContent = Falha ao calcular lucro: ${error.message};
+        console.error('Erro no cálculo de lucro:', error);
+    } finally {
+        loadingMessageElement.style.display = 'none';
+    }
 }
 
-// Inicia a aplicação quando a página é carregada
-main();
+/**
+ * Limpa os campos de entrada e a área de exibição de dados.
+ */
+function clearFields() {
+    itemRawNameInput.value = '';
+    itemProcessedNameInput.value = '';
+    apiDataElement.innerHTML = '';
+    errorMessageElement.textContent = '';
+    loadingMessageElement.style.display = 'none';
+}
+
+// --- Event Listeners ---
+calculateProfitButton.addEventListener('click', calculateProfit);
+clearButton.addEventListener('click', clearFields);
+
+// Carrega o mapeamento de nome para ID quando a página é carregada
+document.addEventListener('DOMContentLoaded', loadItemNameToIdMap);

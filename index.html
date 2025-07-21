@@ -1,24 +1,40 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Calculadora Idle Clans</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Lucro Idle Clans</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>💰 Calculadora de Lucro — Idle Clans</h1>
-  <table id="resultTable">
-    <thead>
-      <tr>
-        <th>Item</th>
-        <th>Lucro/Unid</th>
-        <th>Lucro/Hora</th>
-        <th>XP/Hora</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <script src="script.js"></script>
+    <header>
+        <h1>Calculadora de Lucro de Culinária (Idle Clans)</h1>
+    </header>
+
+    <main>
+        <p>Insira os nomes dos itens e calcule o lucro potencial!</p>
+
+        <div class="controls">
+            <label for="item-raw-name">Nome do Item Base (Ex: Baiacu Cru):</label>
+            <input type="text" id="item-raw-name" placeholder="Nome do Item Cru">
+
+            <label for="item-processed-name">Nome do Item Processado (Ex: Baiacu Cozido):</label>
+            <input type="text" id="item-processed-name" placeholder="Nome do Item Cozido">
+
+            <button id="calculate-profit-button">Calcular Lucro</button>
+            <button id="clear-button">Limpar</button>
+        </div>
+
+        <p id="loading-message" style="display: none;">Buscando preços...</p>
+        <div id="api-data">
+            </div>
+        <p id="error-message" class="error"></p>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Seu Nome. Projeto para GitHub Pages.</p>
+    </footer>
+
+    <script src="script.js"></script>
 </body>
 </html>
