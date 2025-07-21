@@ -45,23 +45,47 @@ function calcularLucro(precos) {
 
 function renderizarTabela(dados) {
   const tbody = document.querySelector("#resultTable tbody");
-  tbody.innerHTML = "";
-  dados.sort((a, b) => b.lucroHora - a.lucroHora).forEach(r => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.nome}</td>
-      <td>${r.lucro.toFixed(0)}</td>
-      <td>${r.lucroHora.toFixed(0)}</td>
-      <td>${r.xpHora.toFixed(0)}</td>
+  tbody.innerHTML = ""; // Limpa o corpo da tabela
+
+  if (dados.length === 0) {
+    // Se não houver dados, exibe uma mensagem
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4; // Faz a célula ocupar todas as colunas
+    cell.textContent = "Nenhum item encontrado no mercado no momento. Tente novamente mais tarde.";
+    cell.style.textAlign = "center";
+    cell.style.padding = "20px";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return; // Sai da função, não tenta renderizar a tabela
+  }
+
+  dados.sort((a, b) => b.lucroHora - a.lucroHora); // Ordena os dados
+
+  dados.forEach(item => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${item.nome}</td>
+      <td>${item.lucro.toFixed(2)}</td>
+      <td>${item.lucroHora.toFixed(2)}</td>
+      <td>${item.xpHora.toFixed(2)}</td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
 }
 
+// Não se esqueça de chamar renderizarTabela no main()
 async function main() {
-  const precos = await buscarPrecos();
-  const resultados = calcularLucro(precos);
-  renderizarTabela(resultados);
+  try {
+    const precos = await buscarPrecos();
+    const lucros = calcularLucro(precos);
+    renderizarTabela(lucros); // Passa os lucros para renderizar
+  } catch (error) {
+    console.error("Erro ao carregar ou processar dados:", error);
+    // Opcional: Renderizar uma mensagem de erro na tabela
+    const tbody = document.querySelector("#resultTable tbody");
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red; padding:20px;">Erro ao carregar os dados. Verifique o console para mais detalhes.</td></tr>`;
+  }
 }
 
-main();
+main(); // Chame a função principal
