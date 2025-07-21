@@ -19,13 +19,13 @@ let itemNameToIdMap = new Map();
  * @returns {Promise<any>} Os dados parseados da resposta.
  */
 async function fetchApiData(url) {
-    console.log(Buscando dados de: ${url});
+    console.log(`Buscando dados de: ${url}`);
     const response = await fetch(url);
 
     if (!response.ok) {
         const errorBody = await response.text();
         console.error('Resposta de erro da API:', errorBody);
-        throw new Error(Erro HTTP: ${response.status} ${response.statusText}. Detalhes: ${errorBody.substring(0, 200)}...);
+        throw new Error(`Erro HTTP: ${response.status} ${response.statusText}. Detalhes: ${errorBody.substring(0, 200)}...`);
     }
 
     let data;
@@ -57,7 +57,7 @@ async function loadItemNameToIdMap() {
     try {
         // Obter todos os preços mais recentes (isso geralmente inclui o nome do item associado ao ID)
         // A API de /items/prices/latest retorna um array de objetos, onde cada objeto tem o itemId, lowestPrice, highestPrice e name.
-        const allItemsPrices = await fetchApiData(${BASE_API_URL}PlayerMarket/items/prices/latest);
+        const allItemsPrices = await fetchApiData(`${BASE_API_URL}PlayerMarket/items/prices/latest`);
 
         if (Array.isArray(allItemsPrices)) {
             allItemsPrices.forEach(item => {
@@ -65,12 +65,12 @@ async function loadItemNameToIdMap() {
                     itemNameToIdMap.set(item.name.toLowerCase(), item.itemId);
                 }
             });
-            console.log(Mapeamento de itens carregado: ${itemNameToIdMap.size} itens.);
+            console.log(`Mapeamento de itens carregado: ${itemNameToIdMap.size} itens.`);
         } else {
             throw new Error("Formato inesperado ao carregar lista de itens. Não é um array.");
         }
     } catch (error) {
-        errorMessageElement.textContent = Erro ao carregar mapeamento de itens: ${error.message}. Não será possível buscar itens por nome.;
+        errorMessageElement.textContent = `Erro ao carregar mapeamento de itens: ${error.message}. Não será possível buscar itens por nome.`;
         console.error('Erro ao carregar mapeamento de itens:', error);
     } finally {
         loadingMessageElement.style.display = 'none';
@@ -115,21 +115,21 @@ async function calculateProfit() {
     const processedItemId = getItemIdByName(processedItemName);
 
     if (rawItemId === null) {
-        errorMessageElement.textContent = Item "${rawItemName}" não encontrado na base de dados de itens. Verifique o nome.;
+        errorMessageElement.textContent = `Item "${rawItemName}" não encontrado na base de dados de itens. Verifique o nome.`;
         loadingMessageElement.style.display = 'none';
         return;
     }
     if (processedItemId === null) {
-        errorMessageElement.textContent = Item "${processedItemName}" não encontrado na base de dados de itens. Verifique o nome.;
+        errorMessageElement.textContent = `Item "${processedItemName}" não encontrado na base de dados de itens. Verifique o nome.`;
         loadingMessageElement.style.display = 'none';
         return;
     }
 
     try {
         // Busca o preço do item cru
-        const rawItemPriceData = await fetchApiData(${BASE_API_URL}PlayerMarket/items/prices/latest/${rawItemId});
+        const rawItemPriceData = await fetchApiData(`${BASE_API_URL}PlayerMarket/items/prices/latest/${rawItemId}`);
         // Busca o preço do item processado
-        const processedItemPriceData = await fetchApiData(${BASE_API_URL}PlayerMarket/items/prices/latest/${processedItemId});
+        const processedItemPriceData = await fetchApiData(`${BASE_API_URL}PlayerMarket/items/prices/latest/${processedItemId}`);
 
         const rawItemLowestPrice = rawItemPriceData.lowestPrice;
         const processedItemHighestPrice = processedItemPriceData.highestPrice; // Geralmente vendemos pelo preço mais alto
@@ -157,7 +157,7 @@ async function calculateProfit() {
         apiDataElement.innerHTML = resultHtml;
 
     } catch (error) {
-        errorMessageElement.textContent = Falha ao calcular lucro: ${error.message};
+        errorMessageElement.textContent = `Falha ao calcular lucro: ${error.message}`;
         console.error('Erro no cálculo de lucro:', error);
     } finally {
         loadingMessageElement.style.display = 'none';
